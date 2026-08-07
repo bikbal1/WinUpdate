@@ -8,9 +8,9 @@ $MaxAttempts = 5
 $MaxDriverAttempts = 10
 
 # Original credits: SapphSky!!
-Write-Host "=============================================" -ForegroundColor Red
+Write-Host "============================================" -ForegroundColor Red
 Write-Host "Made by Berad from Revivn to make it easier!" -ForegroundColor Green
-Write-Host "=============================================" -ForegroundColor Blue
+Write-Host "============================================" -ForegroundColor Blue
 Write-Host ""
 
 # Install and import PSWindowsUpdate module
