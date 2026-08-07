@@ -14,22 +14,22 @@ $ScriptStartTime = Get-Date
 $ConfirmPreference = 'None'
 
 # Keep title visible in PowerShell window.
-$host.UI.RawUI.WindowTitle = "Made by Berad from Revivn - Driver Update Tool"
+$host.UI.RawUI.WindowTitle = "Made by Technician Berad from Revivn - Driver Update Tool"
 
 # Original credits: SapphSky!!
 Clear-Host
 
-$BannerLine = "============================================"
-$BannerText = "Made by Berad from Revivn to make it easier!"
+$BannerLine = "======================================================="
+$BannerText = "Made by Technician Berad from Revivn to make it easier!"
 
 $ConsoleWidth = $Host.UI.RawUI.WindowSize.Width
 
 $LinePadding = [Math]::Max(0, [Math]::Floor(($ConsoleWidth - $BannerLine.Length) / 2))
 $TextPadding = [Math]::Max(0, [Math]::Floor(($ConsoleWidth - $BannerText.Length) / 2))
 
-Write-Host (" " * $LinePadding + $BannerLine) -ForegroundColor Red
-Write-Host (" " * $TextPadding + $BannerText) -ForegroundColor Green
-Write-Host (" " * $LinePadding + $BannerLine) -ForegroundColor Blue
+Write-Host (" " * $LinePadding + $BannerLine) -ForegroundColor Cyan
+Write-Host (" " * $TextPadding + $BannerText) -ForegroundColor Yellow
+Write-Host (" " * $LinePadding + $BannerLine) -ForegroundColor Cyan
 Write-Host ""
 
 # Install and import PSWindowsUpdate module
