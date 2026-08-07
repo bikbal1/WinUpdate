@@ -11,7 +11,8 @@ for ($i = 1; $i -le $MaxAttempts; $i++) {
 
         Write-Progress -Activity "Preparing PSWindowsUpdate Module" -Status "Attempt $i of $MaxAttempts"
 
-        Write-Host "Thanks to B for making it easier!"
+        # Original credits: SapphSky!!
+        Write-Host "Made by Berad to make it easier!"
 
         Write-Host "Getting Package Provider..."
         Install-PackageProvider -Name NuGet -Force -Confirm:$false | Out-Null
