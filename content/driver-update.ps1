@@ -20,8 +20,8 @@ $host.UI.RawUI.WindowTitle = "Made by Technician Berad from Revivn - Driver Upda
 Clear-Host
 
 Write-Host "=======================================================" -ForegroundColor Red
-Write-Host "Made by Technician Berad from Revivn to make it easier!" -ForegroundColor Green
-Write-Host "=======================================================" -ForegroundColor Blue
+Write-Host "Made by Technician Berad from Revivn to make it easier!" -ForegroundColor Cyan
+Write-Host "=======================================================" -ForegroundColor Red
 Write-Host ""
 
 # Install and import PSWindowsUpdate module
