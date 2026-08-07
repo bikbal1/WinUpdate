@@ -28,7 +28,7 @@ $LinePadding = [Math]::Max(0, [Math]::Floor(($ConsoleWidth - $BannerLine.Length)
 $TextPadding = [Math]::Max(0, [Math]::Floor(($ConsoleWidth - $BannerText.Length) / 2))
 
 Write-Host (" " * $LinePadding + $BannerLine) -ForegroundColor Cyan
-Write-Host (" " * $TextPadding + $BannerText) -ForegroundColor Yellow
+Write-Host (" " * $TextPadding + $BannerText) -ForegroundColor Red
 Write-Host (" " * $LinePadding + $BannerLine) -ForegroundColor Cyan
 Write-Host ""
 
