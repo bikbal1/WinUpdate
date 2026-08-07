@@ -1,13 +1,76 @@
-# Install driver updates
-# Skips drivers that are already installed.
+# Description: Installs PSWindowsUpdate, installs available driver updates,
+# and restarts the computer when finished.
 
-$MaxDriverAttempts = 3
+# How many attempts we want to try and install the module.
+$MaxAttempts = 5
+
+# How many attempts we want to try for each driver.
+$MaxDriverAttempts = 10
+
+# Track total script runtime.
+$ScriptStartTime = Get-Date
+
+# Disable confirmation prompts.
+$ConfirmPreference = 'None'
+
+# Keep title visible in PowerShell window.
+$host.UI.RawUI.WindowTitle = "Made by Berad from Revivn - Driver Update Tool"
+
+# Original credits: SapphSky!!
+Clear-Host
+
+$BannerLine = "============================================"
+$BannerText = "Made by Berad from Revivn to make it easier!"
+
+$ConsoleWidth = $Host.UI.RawUI.WindowSize.Width
+
+$LinePadding = [Math]::Max(0, [Math]::Floor(($ConsoleWidth - $BannerLine.Length) / 2))
+$TextPadding = [Math]::Max(0, [Math]::Floor(($ConsoleWidth - $BannerText.Length) / 2))
+
+Write-Host (" " * $LinePadding + $BannerLine) -ForegroundColor Red
+Write-Host (" " * $TextPadding + $BannerText) -ForegroundColor Green
+Write-Host (" " * $LinePadding + $BannerLine) -ForegroundColor Blue
+Write-Host ""
+
+# Install and import PSWindowsUpdate module
+for ($i = 1; $i -le $MaxAttempts; $i++) {
+
+    if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
+
+        Write-Host "Preparing PSWindowsUpdate Module - Attempt $i of $MaxAttempts"
+
+        Write-Host "Getting Package Provider..."
+        Install-PackageProvider -Name NuGet -Force -Confirm:$false | Out-Null
+
+        Write-Host "Setting Repository..."
+        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+
+        Write-Host "Installing PSWindowsUpdate Module..."
+        Install-Module -Name PSWindowsUpdate -Force -Confirm:$false
+
+        Start-Sleep -Seconds 2
+
+        Write-Host "Importing module..."
+        Import-Module PSWindowsUpdate -Force
+
+        break
+    }
+    else {
+        Write-Host "PSWindowsUpdate already installed."
+        Import-Module PSWindowsUpdate -Force
+        break
+    }
+}
+
+# Install driver updates
+# This is the different part from original repository from SapphSky's, instead of prompting yes or no, it forces to restart.
+# Each driver is attempted multiple times. If it fails after all attempts, it skips and continues.
 
 Write-Host ""
-Write-Host "Checking installed drivers..." -ForegroundColor Yellow
+Write-Host "Preparing Windows Update components..."
 
-$InstalledDrivers = Get-CimInstance Win32_PnPSignedDriver |
-    Select-Object DeviceName, DriverVersion, Manufacturer
+Restart-Service bits -Force -ErrorAction SilentlyContinue
+Restart-Service wuauserv -Force -ErrorAction SilentlyContinue
 
 Write-Host ""
 Write-Host "Checking for driver updates..." -ForegroundColor Yellow
@@ -18,7 +81,7 @@ try {
 
     if (-not $DriverUpdates) {
 
-        Write-Host "No driver updates found." -ForegroundColor Green
+        Write-Host "No driver updates found."
 
     }
     else {
@@ -31,7 +94,9 @@ try {
 
             $CurrentDriver++
 
+            # Track individual driver installation time.
             $DriverStartTime = Get-Date
+
             $Installed = $false
 
             Write-Host ""
@@ -41,18 +106,16 @@ try {
             Write-Host "============================================"
 
 
-            # Check if driver already exists
-            $ExistingDriver = $InstalledDrivers | Where-Object {
-
+            # Check if driver already exists.
+            $InstalledDriver = Get-CimInstance Win32_PnPSignedDriver |
+            Where-Object {
                 $_.DeviceName -like "*$($Driver.Title)*"
-
             }
 
-
-            if ($ExistingDriver) {
+            if ($InstalledDriver) {
 
                 Write-Host "Driver already installed. Skipping." -ForegroundColor DarkYellow
-                Write-Host "Installed version: $($ExistingDriver.DriverVersion)" -ForegroundColor Cyan
+                Write-Host "Installed version: $($InstalledDriver.DriverVersion)" -ForegroundColor Cyan
 
                 continue
 
@@ -62,7 +125,6 @@ try {
             for ($Attempt = 1; $Attempt -le $MaxDriverAttempts; $Attempt++) {
 
                 Write-Host "Attempt $Attempt of $MaxDriverAttempts"
-
 
                 try {
 
@@ -74,48 +136,40 @@ try {
                         -Verbose `
                         -ErrorAction Stop
 
-
                     $DriverElapsedTime = (Get-Date) - $DriverStartTime
-
 
                     Write-Host "Successfully installed driver." -ForegroundColor Green
                     Write-Host "Driver time: $($DriverElapsedTime.ToString('hh\:mm\:ss'))" -ForegroundColor Cyan
-
 
                     $Installed = $true
                     break
 
                 }
-
                 catch {
 
                     Write-Host "Driver installation failed on attempt $Attempt." -ForegroundColor Yellow
                     Write-Host $_.Exception.Message
 
-                    Start-Sleep -Seconds 5
+                    Restart-Service bits -Force -ErrorAction SilentlyContinue
+                    Restart-Service wuauserv -Force -ErrorAction SilentlyContinue
 
+                    Start-Sleep -Seconds 30
                 }
-
             }
-
-
             if (-not $Installed) {
 
                 $DriverElapsedTime = (Get-Date) - $DriverStartTime
 
                 Write-Host ""
-                Write-Host "Skipping driver after failed attempts:" -ForegroundColor Red
+                Write-Host "Skipping driver after $MaxDriverAttempts failed attempts:" -ForegroundColor Red
                 Write-Host $Driver.Title
                 Write-Host "Driver time: $($DriverElapsedTime.ToString('hh\:mm\:ss'))" -ForegroundColor Cyan
 
             }
-
         }
-
     }
 
 }
-
 catch {
 
     Write-Host ""
@@ -123,3 +177,16 @@ catch {
     Write-Host $_.Exception.Message
 
 }
+
+# Calculate total runtime.
+$TotalElapsedTime = (Get-Date) - $ScriptStartTime
+
+Write-Host ""
+Write-Host "Driver update process completed." -ForegroundColor Green
+Write-Host "Total elapsed time: $($TotalElapsedTime.ToString('hh\:mm\:ss'))" -ForegroundColor Cyan
+Write-Host "Restarting computer in 5 seconds..." -ForegroundColor Yellow
+
+Start-Sleep -Seconds 5
+
+# Force reboot
+shutdown.exe /r /t 0 /f
