@@ -104,38 +104,11 @@ try {
             Write-Host "Driver $CurrentDriver of $($DriverUpdates.Count)" -ForegroundColor Yellow
             Write-Host "Installing driver update..." -ForegroundColor Cyan
             Write-Host "============================================"
-            # Check if driver already exists.
-            $InstalledDriver = Get-CimInstance Win32_PnPSignedDriver |
-            Where-Object {
-                $_.DeviceName -like "*$($Driver.Title)*"
-            }
-
-            if ($InstalledDriver) {
-
-                Write-Host "Driver already installed. Skipping." -ForegroundColor DarkYellow
-                Write-Host "Installed version: $($InstalledDriver.DriverVersion)" -ForegroundColor Cyan
-
-                continue
-
-            }
-# Calculate total runtime.
-$TotalElapsedTime = (Get-Date) - $ScriptStartTime
-
-Write-Host ""
-Write-Host "Driver update process completed." -ForegroundColor Green
-Write-Host "Total elapsed time: $($TotalElapsedTime.ToString('hh\:mm\:ss'))" -ForegroundColor Cyan
-Write-Host "Restarting computer in 5 seconds..." -ForegroundColor Yellow
-
-Start-Sleep -Seconds 5
-
-# Force reboot
-shutdown.exe /r /t 0 /f
-
 
             for ($Attempt = 1; $Attempt -le $MaxDriverAttempts; $Attempt++) {
 
                 Write-Host ""
-                Write-Host "Retrying current driver - Attempt $Attempt of $MaxDriverAttempts" -ForegroundColor Yellow
+                Write-Host "Attempt $Attempt of $MaxDriverAttempts for current driver" -ForegroundColor Yellow
 
                 # Track actual driver download/install time.
                 $DriverInstallStartTime = Get-Date
@@ -177,7 +150,7 @@ shutdown.exe /r /t 0 /f
                     if ($Attempt -lt $MaxDriverAttempts) {
 
                         Write-Host ""
-                        Write-Host "Refreshing Windows Update services before retry..." -ForegroundColor Cyan
+                        Write-Host "Retrying same driver..." -ForegroundColor Cyan
 
                         Restart-Service bits -Force -ErrorAction SilentlyContinue
                         Restart-Service wuauserv -Force -ErrorAction SilentlyContinue
@@ -213,3 +186,15 @@ catch {
     Write-Host $_.Exception.Message
 
 }
+# Calculate total runtime.
+$TotalElapsedTime = (Get-Date) - $ScriptStartTime
+
+Write-Host ""
+Write-Host "Driver update process completed." -ForegroundColor Green
+Write-Host "Total elapsed time: $($TotalElapsedTime.ToString('hh\:mm\:ss'))" -ForegroundColor Cyan
+Write-Host "Restarting computer in 5 seconds..." -ForegroundColor Yellow
+
+Start-Sleep -Seconds 5
+
+# Force reboot
+shutdown.exe /r /t 0 /f
