@@ -102,10 +102,8 @@ try {
             Write-Host ""
             Write-Host "============================================"
             Write-Host "Driver $CurrentDriver of $($DriverUpdates.Count)" -ForegroundColor Yellow
-            Write-Host $Driver.Title -ForegroundColor Cyan
+            Write-Host "Installing driver update..." -ForegroundColor Cyan
             Write-Host "============================================"
-
-
             # Check if driver already exists.
             $InstalledDriver = Get-CimInstance Win32_PnPSignedDriver |
             Where-Object {
@@ -120,64 +118,6 @@ try {
                 continue
 
             }
-
-
-            for ($Attempt = 1; $Attempt -le $MaxDriverAttempts; $Attempt++) {
-
-                Write-Host "Attempt $Attempt of $MaxDriverAttempts"
-
-                try {
-
-                    Install-WindowsUpdate `
-                        -UpdateID $Driver.UpdateID `
-                        -AcceptAll `
-                        -Confirm:$false `
-                        -IgnoreReboot `
-                        -Verbose `
-                        -ErrorAction Stop
-
-                    $DriverElapsedTime = (Get-Date) - $DriverStartTime
-
-                    Write-Host "Successfully installed driver." -ForegroundColor Green
-                    Write-Host "Driver time: $($DriverElapsedTime.ToString('hh\:mm\:ss'))" -ForegroundColor Cyan
-
-                    $Installed = $true
-                    break
-
-                }
-                catch {
-
-                    Write-Host "Driver installation failed on attempt $Attempt." -ForegroundColor Yellow
-                    Write-Host $_.Exception.Message
-
-                    Restart-Service bits -Force -ErrorAction SilentlyContinue
-                    Restart-Service wuauserv -Force -ErrorAction SilentlyContinue
-
-                    Start-Sleep -Seconds 30
-                }
-            }
-            if (-not $Installed) {
-
-                $DriverElapsedTime = (Get-Date) - $DriverStartTime
-
-                Write-Host ""
-                Write-Host "Skipping driver after $MaxDriverAttempts failed attempts:" -ForegroundColor Red
-                Write-Host $Driver.Title
-                Write-Host "Driver time: $($DriverElapsedTime.ToString('hh\:mm\:ss'))" -ForegroundColor Cyan
-
-            }
-        }
-    }
-
-}
-catch {
-
-    Write-Host ""
-    Write-Host "Driver update scan failed:" -ForegroundColor Red
-    Write-Host $_.Exception.Message
-
-}
-
 # Calculate total runtime.
 $TotalElapsedTime = (Get-Date) - $ScriptStartTime
 
@@ -190,3 +130,86 @@ Start-Sleep -Seconds 5
 
 # Force reboot
 shutdown.exe /r /t 0 /f
+
+
+            for ($Attempt = 1; $Attempt -le $MaxDriverAttempts; $Attempt++) {
+
+                Write-Host ""
+                Write-Host "Retrying current driver - Attempt $Attempt of $MaxDriverAttempts" -ForegroundColor Yellow
+
+                # Track actual driver download/install time.
+                $DriverInstallStartTime = Get-Date
+
+                try {
+
+                    Install-WindowsUpdate `
+                        -UpdateID $Driver.UpdateID `
+                        -AcceptAll `
+                        -Confirm:$false `
+                        -IgnoreReboot `
+                        -Verbose `
+                        -ErrorAction Stop
+
+
+                    $DriverElapsedTime = (Get-Date) - $DriverInstallStartTime
+
+
+                    Write-Host ""
+                    Write-Host "Successfully installed driver." -ForegroundColor Green
+                    Write-Host "Driver time: $($DriverElapsedTime.ToString('hh\:mm\:ss'))" -ForegroundColor Cyan
+
+
+                    $Installed = $true
+                    break
+
+
+                }
+                catch {
+
+                    $DriverElapsedTime = (Get-Date) - $DriverInstallStartTime
+
+                    Write-Host ""
+                    Write-Host "Driver installation failed on attempt $Attempt." -ForegroundColor Yellow
+                    Write-Host $_.Exception.Message
+                    Write-Host "Attempt time: $($DriverElapsedTime.ToString('hh\:mm\:ss'))" -ForegroundColor Cyan
+
+
+                    if ($Attempt -lt $MaxDriverAttempts) {
+
+                        Write-Host ""
+                        Write-Host "Refreshing Windows Update services before retry..." -ForegroundColor Cyan
+
+                        Restart-Service bits -Force -ErrorAction SilentlyContinue
+                        Restart-Service wuauserv -Force -ErrorAction SilentlyContinue
+
+                        Start-Sleep -Seconds 30
+
+                    }
+
+                }
+            }
+
+
+            if (-not $Installed) {
+
+                $DriverElapsedTime = (Get-Date) - $DriverStartTime
+
+                Write-Host ""
+                Write-Host "Skipping driver after $MaxDriverAttempts failed attempts:" -ForegroundColor Red
+                Write-Host "Driver update skipped."
+                Write-Host "Driver time: $($DriverElapsedTime.ToString('hh\:mm\:ss'))" -ForegroundColor Cyan
+
+            }
+
+        }
+
+    }
+
+}
+catch {
+
+    Write-Host ""
+    Write-Host "Driver update scan failed:" -ForegroundColor Red
+    Write-Host $_.Exception.Message
+
+}
