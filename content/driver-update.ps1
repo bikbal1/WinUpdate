@@ -4,15 +4,15 @@
 # How many attempts we want to try and install the module.
 $MaxAttempts = 5
 
-# Original credits: SapphSky!!
-Write-Host "Made by Berad to make it easier!"
-
 # Install and import PSWindowsUpdate module
 for ($i = 1; $i -le $MaxAttempts; $i++) {
 
     if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
 
         Write-Progress -Activity "Preparing PSWindowsUpdate Module" -Status "Attempt $i of $MaxAttempts"
+
+        # Original credits: SapphSky!!
+        Write-Host "Made by Berad to make it easier!"
 
         Write-Host "Getting Package Provider..."
         Install-PackageProvider -Name NuGet -Force -Confirm:$false | Out-Null
@@ -40,6 +40,17 @@ for ($i = 1; $i -le $MaxAttempts; $i++) {
 
 # Install driver updates
 # This is the different part from original repository from SapphSky's, instead of prompting yes or no, it forces to restart.
+
+Write-Host "Resetting Windows Update components..."
+
+Stop-Service wuauserv -Force -ErrorAction SilentlyContinue
+Stop-Service bits -Force -ErrorAction SilentlyContinue
+
+Remove-Item -Path "$env:SystemRoot\SoftwareDistribution" -Recurse -Force -ErrorAction SilentlyContinue
+
+Start-Service bits
+Start-Service wuauserv
+
 Write-Host "Checking for driver updates..."
 
 try {
