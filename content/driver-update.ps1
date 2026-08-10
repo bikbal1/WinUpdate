@@ -1,11 +1,8 @@
 # Description: Installs PSWindowsUpdate, installs available driver updates,
-# and restarts the computer when finished.
+# skips any driver that fails, and restarts the computer when finished.
 
 # How many attempts we want to try and install the module.
 $MaxAttempts = 5
-
-# How many attempts we want to try for each driver.
-$MaxDriverAttempts = 10
 
 # Track total script runtime.
 $ScriptStartTime = Get-Date
@@ -32,39 +29,83 @@ Write-Host (" " * $TextPadding + $BannerText) -ForegroundColor Red
 Write-Host (" " * $LinePadding + $BannerLine) -ForegroundColor Cyan
 Write-Host ""
 
+# ============================================================
 # Install and import PSWindowsUpdate module
+# ============================================================
+
 for ($i = 1; $i -le $MaxAttempts; $i++) {
 
     if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
 
         Write-Host "Preparing PSWindowsUpdate Module - Attempt $i of $MaxAttempts"
 
-        Write-Host "Getting Package Provider..."
-        Install-PackageProvider -Name NuGet -Force -Confirm:$false | Out-Null
+        try {
 
-        Write-Host "Setting Repository..."
-        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+            Write-Host "Getting Package Provider..."
+            Install-PackageProvider -Name NuGet -Force -Confirm:$false -ErrorAction Stop | Out-Null
 
-        Write-Host "Installing PSWindowsUpdate Module..."
-        Install-Module -Name PSWindowsUpdate -Force -Confirm:$false
+            Write-Host "Setting Repository..."
+            Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
 
-        Start-Sleep -Seconds 2
+            Write-Host "Installing PSWindowsUpdate Module..."
+            Install-Module -Name PSWindowsUpdate -Force -Confirm:$false -ErrorAction Stop
 
-        Write-Host "Importing module..."
-        Import-Module PSWindowsUpdate -Force
+            Start-Sleep -Seconds 2
 
-        break
+            Write-Host "Importing module..."
+            Import-Module PSWindowsUpdate -Force -ErrorAction Stop
+
+            Write-Host "PSWindowsUpdate module installed successfully." -ForegroundColor Green
+
+            break
+
+        }
+        catch {
+
+            Write-Host ""
+            Write-Host "PSWindowsUpdate module installation failed." -ForegroundColor Yellow
+            Write-Host $_.Exception.Message -ForegroundColor Yellow
+
+            if ($i -lt $MaxAttempts) {
+
+                Write-Host "Retrying module installation..." -ForegroundColor Cyan
+                Start-Sleep -Seconds 5
+
+            }
+            else {
+
+                Write-Host ""
+                Write-Host "Unable to install PSWindowsUpdate after $MaxAttempts attempts." -ForegroundColor Red
+                Write-Host "Driver update process cannot continue." -ForegroundColor Red
+                exit 1
+
+            }
+        }
     }
     else {
-        Write-Host "PSWindowsUpdate already installed."
-        Import-Module PSWindowsUpdate -Force
+
+        Write-Host "PSWindowsUpdate already installed." -ForegroundColor Green
+
+        try {
+
+            Import-Module PSWindowsUpdate -Force -ErrorAction Stop
+
+        }
+        catch {
+
+            Write-Host "Unable to import PSWindowsUpdate." -ForegroundColor Red
+            Write-Host $_.Exception.Message -ForegroundColor Red
+            exit 1
+
+        }
+
         break
     }
 }
 
-# Install driver updates
-# This is the different part from original repository from SapphSky's, instead of prompting yes or no, it forces to restart.
-# Each driver is attempted multiple times. If it fails after all attempts, it skips and continues.
+# ============================================================
+# Prepare Windows Update
+# ============================================================
 
 Write-Host ""
 Write-Host "Preparing Windows Update components..."
@@ -77,124 +118,160 @@ Write-Host "Checking for driver updates..." -ForegroundColor Yellow
 
 try {
 
-    $DriverUpdates = Get-WindowsUpdate -UpdateType Driver -MicrosoftUpdate
+    $DriverUpdates = Get-WindowsUpdate -UpdateType Driver -MicrosoftUpdate -ErrorAction Stop
 
     if (-not $DriverUpdates) {
 
-        Write-Host "No driver updates found."
+        Write-Host ""
+        Write-Host "No driver updates found." -ForegroundColor Green
 
     }
     else {
 
-        Write-Host "$($DriverUpdates.Count) driver update(s) found."
+        Write-Host ""
+        Write-Host "$($DriverUpdates.Count) driver update(s) found." -ForegroundColor Cyan
+
+        # Track results
+        $SuccessfulDrivers = @()
+        $SkippedDrivers = @()
 
         $CurrentDriver = 0
+
+        # ========================================================
+        # Install each driver ONCE
+        # ========================================================
 
         foreach ($Driver in $DriverUpdates) {
 
             $CurrentDriver++
 
-            # Track individual driver installation time.
             $DriverStartTime = Get-Date
 
-            $Installed = $false
-
             Write-Host ""
-            Write-Host "============================================"
+            Write-Host "============================================" -ForegroundColor Cyan
             Write-Host "Driver $CurrentDriver of $($DriverUpdates.Count)" -ForegroundColor Yellow
             Write-Host "Installing driver update..." -ForegroundColor Cyan
-            Write-Host "============================================"
+            Write-Host "============================================" -ForegroundColor Cyan
 
-            for ($Attempt = 1; $Attempt -le $MaxDriverAttempts; $Attempt++) {
+            Write-Host "Title: $($Driver.Title)" -ForegroundColor White
 
-                Write-Host ""
-                Write-Host "Attempt $Attempt of $MaxDriverAttempts for current driver" -ForegroundColor Yellow
+            # ----------------------------------------------------
+            # ONE attempt only
+            # ----------------------------------------------------
 
-                # Track actual driver download/install time.
+            try {
+
                 $DriverInstallStartTime = Get-Date
 
-                try {
+                Install-WindowsUpdate `
+                    -UpdateID $Driver.UpdateID `
+                    -AcceptAll `
+                    -Confirm:$false `
+                    -IgnoreReboot `
+                    -Verbose `
+                    -ErrorAction Stop
 
-                    Install-WindowsUpdate `
-                        -UpdateID $Driver.UpdateID `
-                        -AcceptAll `
-                        -Confirm:$false `
-                        -IgnoreReboot `
-                        -Verbose `
-                        -ErrorAction Stop
+                $DriverElapsedTime = (Get-Date) - $DriverInstallStartTime
 
+                Write-Host ""
+                Write-Host "Successfully installed driver." -ForegroundColor Green
+                Write-Host "Driver time: $($DriverElapsedTime.ToString('hh\:mm\:ss'))" -ForegroundColor Cyan
 
-                    $DriverElapsedTime = (Get-Date) - $DriverInstallStartTime
+                $SuccessfulDrivers += $Driver
 
-
-                    Write-Host ""
-                    Write-Host "Successfully installed driver." -ForegroundColor Green
-                    Write-Host "Driver time: $($DriverElapsedTime.ToString('hh\:mm\:ss'))" -ForegroundColor Cyan
-
-
-                    $Installed = $true
-                    break
-
-
-                }
-                catch {
-
-                    $DriverElapsedTime = (Get-Date) - $DriverInstallStartTime
-
-                    Write-Host ""
-                    Write-Host "Driver installation failed on attempt $Attempt." -ForegroundColor Yellow
-                    Write-Host $_.Exception.Message
-                    Write-Host "Attempt time: $($DriverElapsedTime.ToString('hh\:mm\:ss'))" -ForegroundColor Cyan
-
-
-                    if ($Attempt -lt $MaxDriverAttempts) {
-
-                        Write-Host ""
-                        Write-Host "Retrying same driver..." -ForegroundColor Cyan
-
-                        Restart-Service bits -Force -ErrorAction SilentlyContinue
-                        Restart-Service wuauserv -Force -ErrorAction SilentlyContinue
-
-                        Start-Sleep -Seconds 30
-
-                    }
-
-                }
             }
-
-
-            if (-not $Installed) {
+            catch {
 
                 $DriverElapsedTime = (Get-Date) - $DriverStartTime
 
                 Write-Host ""
-                Write-Host "Skipping driver after $MaxDriverAttempts failed attempts:" -ForegroundColor Red
-                Write-Host "Driver update skipped."
+                Write-Host "Driver installation failed - SKIPPING DRIVER." -ForegroundColor Yellow
+                Write-Host "The script will continue with the next driver." -ForegroundColor Cyan
+                Write-Host "Driver: $($Driver.Title)" -ForegroundColor Yellow
+                Write-Host "Reason: $($_.Exception.Message)" -ForegroundColor DarkYellow
                 Write-Host "Driver time: $($DriverElapsedTime.ToString('hh\:mm\:ss'))" -ForegroundColor Cyan
 
-            }
+                # Add to skipped list.
+                $SkippedDrivers += $Driver
 
+                # IMPORTANT:
+                # There is intentionally NO retry here.
+                # The script immediately continues to the next driver.
+
+                continue
+            }
         }
 
-    }
+        # ========================================================
+        # Installation Summary
+        # ========================================================
 
+        Write-Host ""
+        Write-Host "=======================================================" -ForegroundColor Cyan
+        Write-Host "Driver Installation Summary" -ForegroundColor Cyan
+        Write-Host "=======================================================" -ForegroundColor Cyan
+
+        Write-Host ""
+        Write-Host "Successfully installed: $($SuccessfulDrivers.Count)" -ForegroundColor Green
+        Write-Host "Skipped/failed:          $($SkippedDrivers.Count)" -ForegroundColor Yellow
+        Write-Host "Total drivers processed: $($DriverUpdates.Count)" -ForegroundColor Cyan
+
+        if ($SuccessfulDrivers.Count -gt 0) {
+
+            Write-Host ""
+            Write-Host "Successfully installed drivers:" -ForegroundColor Green
+
+            foreach ($Driver in $SuccessfulDrivers) {
+
+                Write-Host "  + $($Driver.Title)" -ForegroundColor Green
+
+            }
+        }
+
+        if ($SkippedDrivers.Count -gt 0) {
+
+            Write-Host ""
+            Write-Host "Skipped/failed drivers:" -ForegroundColor Yellow
+
+            foreach ($Driver in $SkippedDrivers) {
+
+                Write-Host "  - $($Driver.Title)" -ForegroundColor Yellow
+
+            }
+        }
+    }
 }
 catch {
 
+    # This only handles a failure of the INITIAL DRIVER SCAN.
+    # A single driver's installation failure is handled inside
+    # the foreach loop above and will NOT reach this block.
+
     Write-Host ""
-    Write-Host "Driver update scan failed:" -ForegroundColor Red
-    Write-Host $_.Exception.Message
+    Write-Host "Driver update scan failed." -ForegroundColor Red
+    Write-Host $_.Exception.Message -ForegroundColor Yellow
 
 }
-# Calculate total runtime.
+
+# ============================================================
+# Calculate total runtime
+# ============================================================
+
 $TotalElapsedTime = (Get-Date) - $ScriptStartTime
 
 Write-Host ""
+Write-Host "=======================================================" -ForegroundColor Cyan
 Write-Host "Driver update process completed." -ForegroundColor Green
 Write-Host "Total elapsed time: $($TotalElapsedTime.ToString('hh\:mm\:ss'))" -ForegroundColor Cyan
+Write-Host "=======================================================" -ForegroundColor Cyan
+
+Write-Host ""
 Write-Host "Restarting computer in 5 seconds..." -ForegroundColor Yellow
 
 Start-Sleep -Seconds 5
 
+# ============================================================
 # Force reboot
+# ============================================================
+
 shutdown.exe /r /t 0 /f
