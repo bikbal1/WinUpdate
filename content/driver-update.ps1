@@ -13,6 +13,7 @@ $MaxAttempts = 5
 # Windows Update KBs to ALWAYS skip.
 $SkipKBs = @(
     "KB5044285"
+    "KB5121003"
 )
 
 # Driver UpdateIDs to ALWAYS skip.
